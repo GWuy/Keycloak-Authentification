@@ -1,15 +1,16 @@
 package sp26.se194638.ojt.service;
 
-import org.keycloak.models.KeycloakContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
+import sp26.se194638.ojt.exception.BusinessException;
 import sp26.se194638.ojt.model.entity.User;
 import sp26.se194638.ojt.model.request.LoginRequest;
 import sp26.se194638.ojt.model.request.RegisterRequest;
@@ -22,10 +23,8 @@ import org.springframework.http.MediaType;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-
-import java.net.HttpURLConnection;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.util.List;
 
 @Service
 public class UserService {
@@ -39,66 +38,145 @@ public class UserService {
     @Autowired
     private BlacklistRepository blacklistRepository;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Value("${keycloak.client-id}")
+    private String clientId;
+
+    @Value("${keycloak.client-secret}")
+    private String clientSecret;
+
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+
     private static final String TOKEN_URL =
-            "http://localhost:8080/realms/assignment1/protocol/openid-connect/token";
+            "http://localhost:8080/realms/Customer/protocol/openid-connect/token";
+            
+    private static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$";
 
-    private static final String INTROSPECTIVE_URL =
-            "http://localhost:8080/realms/assignment1/protocol/openid-connect/token/introspect";
+    private static final String PASSWORD_REGEX = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$";
 
-    private static final String CLIENT_ID = "gwuy-api-client";
-    private static final String CLIENT_SECRET = "FkSHjwFx7htplZhmaKRWiQ2q2gjArthC";
+    public ResponseEntity<LoginResponse> login(LoginRequest req) {
 
-    public LoginResponse login(LoginRequest loginRequest) {
-
+        // Call Keycloak token endpoint using resource owner password credentials
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "password");
-        body.add("client_id", CLIENT_ID);
-        body.add("client_secret", CLIENT_SECRET);
-        body.add("username", loginRequest.getUsername());
-        body.add("password", loginRequest.getPassword());
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
-        ResponseEntity<String> response = restTemplate.postForEntity(TOKEN_URL, request, String.class);
+        body.add("client_id", clientId);
+        body.add("client_secret", clientSecret);
+        body.add("username", req.getUsername());
+        body.add("password", req.getPassword());
 
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new RuntimeException("Username or Password incorrect!!!");
-        }
-
-        User userLogin = userRepository.findByUsernameAndPassword(loginRequest.getUsername(), loginRequest.getPassword());
-
-        //check xem cos trong black list khong
-        boolean isInBlackList = blacklistRepository.existsByUser(userLogin);
-
-        if (isInBlackList || "INACTIVE".equalsIgnoreCase(userLogin.getStatus())) {
-            throw new RuntimeException("Login fail. You account has been banned");
-        }
-
-        String accessToken = jwtService.generateToken(userLogin);
-        String refreshToken = jwtService.generateRefreshToken(userLogin);
-        LocalDateTime expiresIn;
         try {
-            JsonNode jsonNode = objectMapper.readTree(response.getBody());
-            expiresIn = LocalDateTime.now().plusMinutes(jsonNode.get("expires_in").asLong());
-        } catch (Exception e) {
-            throw new RuntimeException("Error in parsing");
+            ResponseEntity<String> kcResponse = restTemplate.postForEntity(
+                    TOKEN_URL,
+                    new HttpEntity<>(body, headers),
+                    String.class
+            );
+
+            if (kcResponse.getStatusCode().is2xxSuccessful()) {
+                User temp = User.builder()
+                        .username(req.getUsername())
+                        .role("USER")
+                        .build();
+
+                String accessToken = jwtService.generateToken(temp);
+                String refreshToken = jwtService.generateRefreshToken(temp);
+
+                LoginResponse response = LoginResponse.builder()
+                        .accessToken(accessToken)
+                        .refreshToken(refreshToken)
+                        .expiresIn(LocalDateTime.now().plusDays(1))
+                        .build();
+
+                return ResponseEntity.ok(response);
+            }
+
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication failed");
+
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
+            }
+            if (e.getStatusCode() == HttpStatus.FORBIDDEN) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account disabled");
+            }
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication failed");
         }
-
-        LoginResponse loginResponse = LoginResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .expiresIn(expiresIn)
-                .build();
-
-
-        return loginResponse;
     }
 
-    public RegisterResponse register(RegisterRequest request) {
+    public ResponseEntity<?> register(RegisterRequest request) {
 
-        return null;
+        if (isUsernameExisted(request.getUsername())) {
+            throw new BusinessException("Username has already existed");
+
+        }
+
+        if (isPasswordDuplicated(request.getPassword())) {
+            throw new BusinessException("Password was duplicated");
+        }
+
+       if (!request.getPassword().matches(PASSWORD_REGEX)) {
+           throw new BusinessException("Password must contain:\n" +
+                   "- At least 8 characters\n" +
+                   "- 1 uppercase letter\n" +
+                   "- 1 lowercase letter\n" +
+                   "- 1 number\n" +
+                   "- 1 special character");
+       }
+
+        if (!request.getEmail().matches(EMAIL_REGEX)) {
+            throw new BusinessException("Email doesn't email format");
+        }
+
+        if (isEmailExist(request.getEmail())) {
+            throw new BusinessException("Email has already uses");
+        }
+
+        String firstname = request.getFirstname().trim();
+        String lastname = request.getLastname().trim();
+
+        User userRegister = User.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .firstName(firstname)
+                .lastName(lastname)
+                .password(passwordEncoder.encode(request.getPassword()))
+                .status("ACTIVE")
+                .role("USER")
+                .active(1)
+                .build();
+
+        userRepository.save(userRegister);
+
+        RegisterResponse response = RegisterResponse.builder()
+                .message("Register new account successfully")
+                .isSuccess(true)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    public boolean isPasswordDuplicated(String password) {
+        return userRepository.existsByPassword(password);
+    }
+
+    public boolean isUsernameExisted(String username) {
+        return userRepository.existsByUsername(username);
+    }
+
+    public boolean isEmailExist(String email) {
+        List<String> emailList = userRepository.emails();
+
+        for (int i = 0; i < emailList.size() - 1; i++) {
+            if (emailList.get(i).equals(email)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

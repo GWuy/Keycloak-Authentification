@@ -34,7 +34,7 @@ public class User implements UserDetails {
     @Column(name = "last_name", length = 50)
     private String lastName;
 
-    @Column(name = "password", length = 50)
+    @Column(name = "password", columnDefinition = "TEXT")
     private String password;
 
     @Column(name = "status", length = 10)
@@ -42,6 +42,8 @@ public class User implements UserDetails {
 
     @Column(name = "role", length = 20)
     private String role;
+    @Column(name = "active")
+    private Integer active;
 
 
     @Override
