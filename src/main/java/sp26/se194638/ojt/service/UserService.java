@@ -145,7 +145,7 @@ public class UserService {
                 .email(request.getEmail())
                 .firstName(firstname)
                 .lastName(lastname)
-                .password(passwordEncoder.encode(request.getPassword()))
+                .password(request.getPassword())
                 .status("ACTIVE")
                 .role("USER")
                 .active(1)
