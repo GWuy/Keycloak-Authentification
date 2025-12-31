@@ -11,4 +11,6 @@ public class LoginResponse {
     private String accessToken;
     private String refreshToken;
     private LocalDateTime expiresIn;
+    private int userId;
+    private String roles;
 }

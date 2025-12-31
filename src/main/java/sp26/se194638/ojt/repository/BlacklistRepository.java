@@ -9,4 +9,6 @@ import sp26.se194638.ojt.model.entity.User;
 @Repository
 public interface BlacklistRepository extends JpaRepository<Blacklist, Integer> {
     boolean existsByUser(User userLogin);
+
+    boolean existsByToken(String token);
 }

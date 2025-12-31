@@ -11,6 +11,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import sp26.se194638.ojt.exception.BusinessException;
+import sp26.se194638.ojt.model.entity.Blacklist;
 import sp26.se194638.ojt.model.entity.User;
 import sp26.se194638.ojt.model.request.LoginRequest;
 import sp26.se194638.ojt.model.request.RegisterRequest;
@@ -20,8 +21,6 @@ import sp26.se194638.ojt.repository.BlacklistRepository;
 import sp26.se194638.ojt.repository.UserRepository;
 
 import org.springframework.http.MediaType;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,6 +40,12 @@ public class UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Value("${jwt.expiration}")
+    private Long accessExpiration;
+
+    @Value("${jwt.refresh-expiration}")
+    private Long refreshExpiration;
+
     @Value("${keycloak.client-id}")
     private String clientId;
 
@@ -48,12 +53,11 @@ public class UserService {
     private String clientSecret;
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
 
     private static final String TOKEN_URL =
             "http://localhost:8080/realms/Customer/protocol/openid-connect/token";
-            
+
     private static final String EMAIL_REGEX = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$";
 
     private static final String PASSWORD_REGEX = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$";
@@ -79,18 +83,17 @@ public class UserService {
             );
 
             if (kcResponse.getStatusCode().is2xxSuccessful()) {
-                User temp = User.builder()
-                        .username(req.getUsername())
-                        .role("USER")
-                        .build();
+                User userLogin = userRepository.findByUsername(req.getUsername());
 
-                String accessToken = jwtService.generateToken(temp);
-                String refreshToken = jwtService.generateRefreshToken(temp);
+                String accessToken = jwtService.generateAccessToken(userLogin);
+                String refreshToken = jwtService.generateRefreshToken(userLogin);
 
                 LoginResponse response = LoginResponse.builder()
                         .accessToken(accessToken)
                         .refreshToken(refreshToken)
                         .expiresIn(LocalDateTime.now().plusDays(1))
+                        .userId(userLogin.getId())
+                        .roles(userLogin.getRole())
                         .build();
 
                 return ResponseEntity.ok(response);
@@ -178,5 +181,42 @@ public class UserService {
             }
         }
         return false;
+    }
+
+    public LoginResponse refreshToken(String refreshToken) {
+        // 1. Kiểm tra xem token có trong blacklist không
+        if (blacklistRepository.existsByToken(refreshToken)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is blacklisted");
+        }
+
+        // 2. Kiểm tra token có hợp lệ (chỉ cần check expiration)
+        if (jwtService.isTokenExpired(refreshToken)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is expired or invalid");
+        }
+
+        // 3. Lấy username từ refresh token
+        String username = jwtService.extractUsername(refreshToken);
+
+        // 4. Lấy user từ database
+        User user = userRepository.findByUsername(username);
+
+        // 5. Sinh access token và refresh token mới
+        String newAccessToken = jwtService.generateAccessToken(user);
+        String newRefreshToken = jwtService.generateRefreshToken(user);
+
+        // 6. Thêm refresh token cũ vào blacklist
+        Blacklist blacklistEntry = Blacklist.builder()
+                .token(refreshToken)
+                .user(user)
+                .reason("Used refresh token")
+                .build();
+        blacklistRepository.save(blacklistEntry);
+
+        // 7. Trả về response
+        return LoginResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .expiresIn(LocalDateTime.now().plusDays(1))
+                .build();
     }
 }
