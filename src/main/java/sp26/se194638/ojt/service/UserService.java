@@ -1,5 +1,6 @@
 package sp26.se194638.ojt.service;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -11,12 +12,14 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import sp26.se194638.ojt.exception.BusinessException;
+import sp26.se194638.ojt.model.entity.AuditBacklog;
 import sp26.se194638.ojt.model.entity.Blacklist;
 import sp26.se194638.ojt.model.entity.User;
 import sp26.se194638.ojt.model.request.LoginRequest;
 import sp26.se194638.ojt.model.request.RegisterRequest;
 import sp26.se194638.ojt.model.response.LoginResponse;
 import sp26.se194638.ojt.model.response.RegisterResponse;
+import sp26.se194638.ojt.repository.AuditRepository;
 import sp26.se194638.ojt.repository.BlacklistRepository;
 import sp26.se194638.ojt.repository.UserRepository;
 
@@ -40,7 +43,13 @@ public class UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    @Value("${jwt.expiration}")
+    @Autowired
+    private AuditRepository auditRepository;
+
+    @Autowired
+    private IpService ipService;
+
+    @Value("${jwt.access-expiration}")
     private Long accessExpiration;
 
     @Value("${jwt.refresh-expiration}")
@@ -62,9 +71,8 @@ public class UserService {
 
     private static final String PASSWORD_REGEX = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$";
 
-    public ResponseEntity<LoginResponse> login(LoginRequest req) {
+    public ResponseEntity<LoginResponse> login(LoginRequest req, HttpServletRequest servletRequest) {
 
-        // Call Keycloak token endpoint using resource owner password credentials
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
@@ -96,7 +104,30 @@ public class UserService {
                         .roles(userLogin.getRole())
                         .build();
 
-                return ResponseEntity.ok(response);
+              AuditBacklog auditBacklog = AuditBacklog.builder()
+                .user(userLogin)
+                .action("User " + userLogin.getUsername() + " has logged in to the system")
+                .ipAddress(ipService.getClientIp(servletRequest))
+                .status(kcResponse.getStatusCode().value())
+                .actionAt(LocalDateTime.now())
+                .build();
+
+              auditRepository.save(auditBacklog);
+
+              return ResponseEntity.ok(response);
+            }
+            else {
+              User userLogin = userRepository.findByUsername(req.getUsername());
+
+              AuditBacklog auditBacklog = AuditBacklog.builder()
+                .user(userLogin)
+                .action("User " + userLogin.getUsername() + " has logged in to the system")
+                .ipAddress(ipService.getClientIp(servletRequest))
+                .status(kcResponse.getStatusCode().value())
+                .actionAt(LocalDateTime.now())
+                .build();
+
+              auditRepository.save(auditBacklog);
             }
 
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication failed");
@@ -112,7 +143,7 @@ public class UserService {
         }
     }
 
-    public ResponseEntity<?> register(RegisterRequest request) {
+    public ResponseEntity<?> register(RegisterRequest request, HttpServletRequest servletRequest) {
 
         if (isUsernameExisted(request.getUsername())) {
             throw new BusinessException("Username has already existed");
@@ -184,27 +215,21 @@ public class UserService {
     }
 
     public LoginResponse refreshToken(String refreshToken) {
-        // 1. Kiểm tra xem token có trong blacklist không
         if (blacklistRepository.existsByToken(refreshToken)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is blacklisted");
         }
 
-        // 2. Kiểm tra token có hợp lệ (chỉ cần check expiration)
         if (jwtService.isTokenExpired(refreshToken)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is expired or invalid");
         }
 
-        // 3. Lấy username từ refresh token
         String username = jwtService.extractUsername(refreshToken);
 
-        // 4. Lấy user từ database
         User user = userRepository.findByUsername(username);
 
-        // 5. Sinh access token và refresh token mới
         String newAccessToken = jwtService.generateAccessToken(user);
         String newRefreshToken = jwtService.generateRefreshToken(user);
 
-        // 6. Thêm refresh token cũ vào blacklist
         Blacklist blacklistEntry = Blacklist.builder()
                 .token(refreshToken)
                 .user(user)
@@ -212,7 +237,6 @@ public class UserService {
                 .build();
         blacklistRepository.save(blacklistEntry);
 
-        // 7. Trả về response
         return LoginResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)

@@ -1,5 +1,6 @@
 package sp26.se194638.ojt.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,9 +23,10 @@ public class AuthController {
     produces = MediaType.APPLICATION_JSON_VALUE
   )
   public ResponseEntity<?> login(
-    @RequestBody LoginRequest request
+    @RequestBody LoginRequest request,
+    HttpServletRequest servletRequest
   ) {
-    return ResponseEntity.ok(userService.login(request)).getBody();
+    return ResponseEntity.ok(userService.login(request, servletRequest)).getBody();
   }
 
   @PostMapping(
@@ -33,9 +35,10 @@ public class AuthController {
     produces = MediaType.APPLICATION_JSON_VALUE
   )
   public ResponseEntity<?> register(
-    @RequestBody RegisterRequest request
+    @RequestBody RegisterRequest request,
+    HttpServletRequest servletRequest
   ) {
-    return ResponseEntity.ok(userService.register(request)).getBody();
+    return ResponseEntity.ok(userService.register(request, servletRequest)).getBody();
   }
 
   @PostMapping("/refresh")
