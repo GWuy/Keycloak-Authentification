@@ -1,4 +1,4 @@
-package sp26.se194638.ojt.model.response;
+package sp26.se194638.ojt.dto.response;
 
 import lombok.Data;
 

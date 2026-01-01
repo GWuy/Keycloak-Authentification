@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 public class AuditBacklog {
     @Id
     @Column(name = "id", nullable = false)
-
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -38,6 +38,5 @@ public class AuditBacklog {
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "action_at")
     private LocalDateTime actionAt;
-
 
 }

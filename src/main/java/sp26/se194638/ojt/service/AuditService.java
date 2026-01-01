@@ -1,16 +1,14 @@
 package sp26.se194638.ojt.service;
 
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import sp26.se194638.ojt.mapper.AuditBacklogMapper;
 import sp26.se194638.ojt.model.entity.AuditBacklog;
 import sp26.se194638.ojt.model.entity.User;
-import sp26.se194638.ojt.model.response.AuditBacklogResponse;
-import sp26.se194638.ojt.model.response.ErrorResponse;
+import sp26.se194638.ojt.dto.response.AuditBacklogResponse;
+import sp26.se194638.ojt.dto.response.ErrorResponse;
 import sp26.se194638.ojt.repository.AuditRepository;
 import sp26.se194638.ojt.repository.UserRepository;
 
@@ -35,12 +33,7 @@ public class AuditService {
   public ResponseEntity<?> listAll(String header) {
 
     String token = header.substring(7);
-    if (token != null) {
-      log.info("Da lay duoc token: {}", token);
-    }
-    else {
-      log.info("Khong tim duoc token");
-    }
+    log.info("Da lay duoc token: {}", token);
     User admin = userRepository.findByUsername(jwtService.extractUsername(token));
 
     if (!admin.getRole().equalsIgnoreCase("ADMIN")) {
@@ -60,9 +53,5 @@ public class AuditService {
       }
     }
     return ResponseEntity.ok(responses);
-  }
-
-  public void addAudit(AuditBacklog auditBacklog) {
-
   }
 }

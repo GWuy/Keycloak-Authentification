@@ -5,10 +5,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import sp26.se194638.ojt.model.request.LoginRequest;
-import sp26.se194638.ojt.model.request.RegisterRequest;
-import sp26.se194638.ojt.model.response.LoginResponse;
+import sp26.se194638.ojt.dto.request.LoginRequest;
+import sp26.se194638.ojt.dto.request.RegisterRequest;
+import sp26.se194638.ojt.dto.response.LoginResponse;
 import sp26.se194638.ojt.service.UserService;
+
+import java.text.ParseException;
 
 @RestController
 @RequestMapping("assign1/api/auth")
@@ -38,7 +40,7 @@ public class AuthController {
     @RequestBody RegisterRequest request,
     HttpServletRequest servletRequest
   ) {
-    return ResponseEntity.ok(userService.register(request, servletRequest)).getBody();
+    return ResponseEntity.ok(userService.register(request)).getBody();
   }
 
   @PostMapping("/refresh")
@@ -46,4 +48,8 @@ public class AuthController {
     return ResponseEntity.ok(userService.refreshToken(refreshToken));
   }
 
+  @PostMapping("/logout")
+  public ResponseEntity<?> login(@RequestHeader("Authorization") String header) throws ParseException {
+    return ResponseEntity.ok(userService.logout(header));
+  }
 }
