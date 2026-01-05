@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
@@ -12,15 +13,15 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
-import sp26.se194638.ojt.dto.response.*;
 import sp26.se194638.ojt.exception.BusinessException;
 import sp26.se194638.ojt.mapper.UserMapper;
+import sp26.se194638.ojt.model.dto.response.*;
 import sp26.se194638.ojt.model.entity.AuditBacklog;
 import sp26.se194638.ojt.model.entity.Blacklist;
 import sp26.se194638.ojt.model.entity.RedisToken;
 import sp26.se194638.ojt.model.entity.User;
-import sp26.se194638.ojt.dto.request.LoginRequest;
-import sp26.se194638.ojt.dto.request.RegisterRequest;
+import sp26.se194638.ojt.model.dto.request.LoginRequest;
+import sp26.se194638.ojt.model.dto.request.RegisterRequest;
 import sp26.se194638.ojt.repository.*;
 
 import org.springframework.http.MediaType;
@@ -29,6 +30,7 @@ import java.text.ParseException;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class UserService {
@@ -43,7 +45,7 @@ public class UserService {
   private BlacklistRepository blacklistRepository;
 
   @Autowired
-  private PasswordEncoder passwordEncoder;
+  private PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
 
   @Autowired
   private AuditRepository auditRepository;
@@ -55,7 +57,7 @@ public class UserService {
   private IpService ipService;
 
   @Autowired
-  private RedisTokenRepository redisTokenRepository;
+  private RedisService redisService;
 
   @Value("${jwt.access-expiration}")
   private Long accessExpiration;
@@ -70,7 +72,6 @@ public class UserService {
   private String clientSecret;
 
   private final RestTemplate restTemplate = new RestTemplate();
-
 
   private static final String TOKEN_URL =
     "http://localhost:8080/realms/Customer/protocol/openid-connect/token";
@@ -105,6 +106,11 @@ public class UserService {
 
         TokenPayload accessToken = jwtService.generateAccessToken(userLogin);
         TokenPayload refreshToken = jwtService.generateRefreshToken(userLogin);
+
+        String jti = accessToken.getJwtId();
+        long ttl = accessExpiration;
+
+        redisService.saveToken(jti, accessToken.getToken(), ttl);
 
         LoginResponse response = LoginResponse.builder()
           .accessToken(accessToken.getToken())
@@ -172,6 +178,10 @@ public class UserService {
         "- 1 special character");
     }
 
+    if (!Objects.equals(request.getConfirmPassword(), request.getPassword())) {
+      throw new BusinessException("Passwords don't match");
+    }
+
     if (!request.getEmail().matches(EMAIL_REGEX)) {
       throw new BusinessException("Email doesn't email format");
     }
@@ -188,7 +198,7 @@ public class UserService {
       .email(request.getEmail())
       .firstName(firstname)
       .lastName(lastname)
-      .password(request.getPassword())
+      .password((request.getPassword()))
       .status("ACTIVE")
       .role("USER")
       .active(1)
@@ -204,8 +214,9 @@ public class UserService {
     return ResponseEntity.ok(response);
   }
 
-  public boolean isPasswordDuplicated(String password) {
-    return userRepository.existsByPassword(password);
+  public boolean isPasswordDuplicated(String rawPassword) {
+    return userRepository.findAll().stream()
+      .anyMatch(u -> passwordEncoder.matches(rawPassword, u.getPassword()));
   }
 
   public boolean isUsernameExisted(String username) {
@@ -224,32 +235,49 @@ public class UserService {
   }
 
   public LoginResponse refreshToken(String refreshToken) {
-    if (blacklistRepository.existsByToken(refreshToken)) {
-      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is blacklisted");
-    }
 
     if (jwtService.isTokenExpired(refreshToken)) {
-      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is expired or invalid");
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token expired");
     }
 
     String username = jwtService.extractUsername(refreshToken);
-
     User user = userRepository.findByUsername(username);
 
-    TokenPayload newAccessToken = jwtService.generateAccessToken(user);
-    TokenPayload newRefreshToken = jwtService.generateRefreshToken(user);
+    List<Blacklist> blacklists =
+      blacklistRepository.findByUserId(user.getId());
 
-    Blacklist blacklistEntry = Blacklist.builder()
-      .token(refreshToken)
-      .user(user)
-      .reason("Used refresh token")
-      .build();
-    blacklistRepository.save(blacklistEntry);
+    for (Blacklist b : blacklists) {
+      if (passwordEncoder.matches(refreshToken, b.getTokenHash())) {
+        throw new ResponseStatusException(
+          HttpStatus.UNAUTHORIZED,
+          "Refresh token is revoked"
+        );
+      }
+    }
+
+    TokenPayload newAccess = jwtService.generateAccessToken(user);
+    TokenPayload newRefresh = jwtService.generateRefreshToken(user);
+
+    /* ===== REVOKE OLD REFRESH TOKEN ===== */
+    blacklistRepository.save(
+      Blacklist.builder()
+        .user(user)
+        .tokenHash(passwordEncoder.encode(refreshToken))
+        .expiresAt(jwtService.extractExpiration(refreshToken))
+        .reason("ROTATED")
+        .build()
+    );
+    /* ===== SAVE NEW ACCESS TOKEN ===== */
+    redisService.saveToken(
+      newAccess.getJwtId(),
+      newAccess.getToken(),
+      accessExpiration
+    );
 
     return LoginResponse.builder()
-      .accessToken(newAccessToken.getToken())
-      .refreshToken(newRefreshToken.getToken())
-      .expiresIn(LocalDateTime.now().plusDays(1))
+      .accessToken(newAccess.getToken())
+      .refreshToken(newRefresh.getToken())
+      .expiresIn(LocalDateTime.now().plusSeconds(accessExpiration / 1000))
       .build();
   }
 
@@ -261,6 +289,13 @@ public class UserService {
         "Token is empty").build();
       return ResponseEntity.ok(errorResponse);
     }
+
+    String jwi = jwtService.extractJwId(token);
+
+    if (!redisService.isTokenValid(jwi, token)) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token is expired or invalid");
+    }
+
     User userProfile = userRepository.findByUsername(jwtService.extractUsername(token));
 
     ProfileResponse response = userMapper.toProfileResponse(userProfile);
@@ -276,11 +311,7 @@ public class UserService {
 
     long ttl = expiration.getTime() - System.currentTimeMillis();
     if (ttl > 0) {
-      RedisToken redisToken = RedisToken.builder()
-        .jwtId(jwtId)
-        .expireTime(ttl)
-        .build();
-      redisTokenRepository.save(redisToken);
+      redisService.revokeToken(jwtId);
     }
 
     return ResponseEntity.ok(LogoutResponse.builder()

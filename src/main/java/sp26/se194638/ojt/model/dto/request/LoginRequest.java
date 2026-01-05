@@ -1,4 +1,4 @@
-package sp26.se194638.ojt.dto.request;
+package sp26.se194638.ojt.model.dto.request;
 
 import lombok.Data;
 

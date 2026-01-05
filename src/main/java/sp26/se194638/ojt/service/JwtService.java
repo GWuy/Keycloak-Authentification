@@ -6,12 +6,13 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
-import sp26.se194638.ojt.dto.response.TokenPayload;
-import sp26.se194638.ojt.dto.response.JwtResponse;
+import sp26.se194638.ojt.model.dto.response.TokenPayload;
+import sp26.se194638.ojt.model.dto.response.JwtResponse;
 
 
 import javax.crypto.SecretKey;
 import java.text.ParseException;
+import java.util.Base64;
 import java.util.Date;
 import java.util.UUID;
 import java.util.function.Function;
@@ -29,10 +30,7 @@ public class JwtService {
   private long refreshExpiration;
 
   private SecretKey getKey() {
-    byte[] keyBytes = secret.getBytes();
-    if (keyBytes.length < 32) {
-      throw new IllegalArgumentException("JWT secret key must be at least 256 bits / 32 bytes");
-    }
+    byte[] keyBytes = Base64.getDecoder().decode(secret);
     return Keys.hmacShaKeyFor(keyBytes);
   }
 
@@ -130,4 +128,9 @@ public class JwtService {
   public boolean isTokenExpired(String token) {
     return extractExpiration(token).before(new Date());
   }
+
+  public String extractJwId(String token) {
+    return extractClaim(token, Claims::getId);
+  }
+
 }

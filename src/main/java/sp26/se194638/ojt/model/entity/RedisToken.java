@@ -18,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 public class RedisToken {
   @Id
   private String jwtId;
-
   @TimeToLive(unit = TimeUnit.MILLISECONDS)
   private Long expireTime;
 }

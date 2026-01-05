@@ -5,9 +5,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import sp26.se194638.ojt.dto.request.LoginRequest;
-import sp26.se194638.ojt.dto.request.RegisterRequest;
-import sp26.se194638.ojt.dto.response.LoginResponse;
+import sp26.se194638.ojt.model.dto.request.LoginRequest;
+import sp26.se194638.ojt.model.dto.request.RegisterRequest;
+import sp26.se194638.ojt.model.dto.response.LoginResponse;
 import sp26.se194638.ojt.service.UserService;
 
 import java.text.ParseException;
@@ -37,8 +37,7 @@ public class AuthController {
     produces = MediaType.APPLICATION_JSON_VALUE
   )
   public ResponseEntity<?> register(
-    @RequestBody RegisterRequest request,
-    HttpServletRequest servletRequest
+    @RequestBody RegisterRequest request
   ) {
     return ResponseEntity.ok(userService.register(request)).getBody();
   }

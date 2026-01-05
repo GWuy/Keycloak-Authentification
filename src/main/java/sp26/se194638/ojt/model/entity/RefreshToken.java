@@ -1,36 +1,25 @@
 package sp26.se194638.ojt.model.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.util.Date;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 @Entity
-@Table(name = "blacklist")
-public class Blacklist {
+@Table(name = "refresh_tokens")
+public class RefreshToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    private Integer id;
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
-
-    @Column(name = "reason", length = 100)
-    private String reason;
 
     @Column(name = "token_hash", nullable = false, length = Integer.MAX_VALUE)
     private String tokenHash;
@@ -38,12 +27,16 @@ public class Blacklist {
     @Column(name = "jti", length = 64)
     private String jti;
 
-    @ColumnDefault("CURRENT_TIMESTAMP")
-    @Column(name = "revoked_at")
-    private OffsetDateTime revokedAt;
-
     @Column(name = "expires_at", nullable = false)
-    private Date expiresAt;
+    private Instant expiresAt;
+
+    @ColumnDefault("false")
+    @Column(name = "revoked")
+    private Boolean revoked;
+
+    @ColumnDefault("now()")
+    @Column(name = "created_at")
+    private Instant createdAt;
 
 
 }

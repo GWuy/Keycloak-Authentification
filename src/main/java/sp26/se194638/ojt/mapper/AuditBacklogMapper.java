@@ -3,7 +3,7 @@ package sp26.se194638.ojt.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import sp26.se194638.ojt.model.entity.AuditBacklog;
-import sp26.se194638.ojt.dto.response.AuditBacklogResponse;
+import sp26.se194638.ojt.model.dto.response.AuditBacklogResponse;
 
 @Mapper(componentModel = "spring")
 public interface AuditBacklogMapper {

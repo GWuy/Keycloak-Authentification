@@ -3,9 +3,7 @@ package sp26.se194638.ojt.configuration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -23,7 +21,7 @@ public class SecurityConfiguration {
   private JwtAuthentificationFilter jwtAuthenticationFilter;
 
   @Bean
-  public SecurityFilterChain securityFilterChain(org.springframework.security.config.annotation.web.builders.HttpSecurity http) throws Exception {
+  public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     http
       .csrf(csrf -> csrf.disable())
       .authorizeHttpRequests(auth -> auth
@@ -31,7 +29,9 @@ public class SecurityConfiguration {
         .requestMatchers("/otp/**", "/api/vnpay/**", "/public/**").permitAll()
         .anyRequest().authenticated()
       )
-      .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+      .sessionManagement(session ->
+        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+      );
 
     http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
