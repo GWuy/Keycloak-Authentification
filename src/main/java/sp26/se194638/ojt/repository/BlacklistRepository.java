@@ -11,9 +11,6 @@ import java.util.List;
 
 @Repository
 public interface BlacklistRepository extends JpaRepository<Blacklist, Integer> {
-    boolean existsByUser(User userLogin);
-
-    boolean existsByToken(String token);
 
   List<Blacklist> findByUserId(Integer userId);
 }

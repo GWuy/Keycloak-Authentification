@@ -8,7 +8,7 @@ import sp26.se194638.ojt.model.dto.response.AuditBacklogResponse;
 @Mapper(componentModel = "spring")
 public interface AuditBacklogMapper {
 
-  @Mapping(source = "user.username", target = "username")
+  @Mapping(source = "actor.id", target = "username")
   @Mapping(source = "actionAt", target = "actionAt")
   AuditBacklogResponse toAuditBacklogResponse(AuditBacklog auditBacklog);
 }

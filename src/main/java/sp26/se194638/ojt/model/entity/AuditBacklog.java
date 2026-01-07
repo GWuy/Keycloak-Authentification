@@ -6,7 +6,6 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Data
@@ -21,22 +20,27 @@ public class AuditBacklog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @OnDelete(action = OnDeleteAction.SET_NULL)
-    @JoinColumn(name = "user_id")
-    private User user;
-
     @Column(name = "action", nullable = false, length = 100)
     private String action;
 
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
 
-    @Column(name = "status")
-    private Integer status;
+    @Column(name = "status", nullable = false)
+    private String status;
 
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "action_at")
     private LocalDateTime actionAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @OnDelete(action = OnDeleteAction.SET_NULL)
+    @JoinColumn(name = "actor")
+    private User actor;
+
+    @Column(name = "error_reason")
+    private String errorReason;
+
+
 
 }

@@ -2,15 +2,18 @@ package sp26.se194638.ojt.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import sp26.se194638.ojt.model.dto.request.LoginRequest;
 import sp26.se194638.ojt.model.dto.request.RegisterRequest;
 import sp26.se194638.ojt.model.dto.response.LoginResponse;
 import sp26.se194638.ojt.service.UserService;
 
 import java.text.ParseException;
+import java.util.Base64;
 
 @RestController
 @RequestMapping("assign1/api/auth")
@@ -28,7 +31,7 @@ public class AuthController {
     @RequestBody LoginRequest request,
     HttpServletRequest servletRequest
   ) {
-    return ResponseEntity.ok(userService.login(request, servletRequest)).getBody();
+    return ResponseEntity.ok(userService.login(request, servletRequest));
   }
 
   @PostMapping(
@@ -37,18 +40,25 @@ public class AuthController {
     produces = MediaType.APPLICATION_JSON_VALUE
   )
   public ResponseEntity<?> register(
-    @RequestBody RegisterRequest request
+    @RequestBody RegisterRequest request,
+    HttpServletRequest servletRequest
   ) {
-    return ResponseEntity.ok(userService.register(request)).getBody();
+    return ResponseEntity.ok(userService.register(request, servletRequest));
   }
 
   @PostMapping("/refresh")
-  public ResponseEntity<LoginResponse> refresh(@RequestParam String refreshToken) {
-    return ResponseEntity.ok(userService.refreshToken(refreshToken));
+  public LoginResponse refresh(
+    @RequestHeader(value = "Authorization", required = false) String header
+  ) {
+    if (header == null || !header.startsWith("Bearer ")) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing or invalid Authorization header");
+    }
+    String refreshToken = header.substring(7);
+    return userService.refreshToken(refreshToken);
   }
 
   @PostMapping("/logout")
-  public ResponseEntity<?> login(@RequestHeader("Authorization") String header) throws ParseException {
+  public ResponseEntity<?> logout(@RequestHeader(value = "Authorization", required = false) String header) throws ParseException {
     return ResponseEntity.ok(userService.logout(header));
   }
 }

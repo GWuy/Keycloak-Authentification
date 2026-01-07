@@ -13,12 +13,13 @@ import org.springframework.web.ErrorResponse;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import sp26.se194638.ojt.annotation.Audit;
+import sp26.se194638.ojt.model.enums.AuditAction;
+import sp26.se194638.ojt.model.enums.ErrorCode;
 import sp26.se194638.ojt.exception.BusinessException;
 import sp26.se194638.ojt.mapper.UserMapper;
 import sp26.se194638.ojt.model.dto.response.*;
-import sp26.se194638.ojt.model.entity.AuditBacklog;
 import sp26.se194638.ojt.model.entity.Blacklist;
-import sp26.se194638.ojt.model.entity.RedisToken;
 import sp26.se194638.ojt.model.entity.User;
 import sp26.se194638.ojt.model.dto.request.LoginRequest;
 import sp26.se194638.ojt.model.dto.request.RegisterRequest;
@@ -28,6 +29,7 @@ import org.springframework.http.MediaType;
 
 import java.text.ParseException;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -82,6 +84,7 @@ public class UserService {
   private static final String PASSWORD_REGEX =
     "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$";
 
+  @Audit(action = AuditAction.LOGIN)
   public ResponseEntity<LoginResponse> login(LoginRequest req, HttpServletRequest servletRequest) {
 
     HttpHeaders headers = new HttpHeaders();
@@ -107,6 +110,8 @@ public class UserService {
         TokenPayload accessToken = jwtService.generateAccessToken(userLogin);
         TokenPayload refreshToken = jwtService.generateRefreshToken(userLogin);
 
+
+        String refreshTokenEncode = Base64.getEncoder().encodeToString(refreshToken.getToken().getBytes());
         String jti = accessToken.getJwtId();
         long ttl = accessExpiration;
 
@@ -114,37 +119,14 @@ public class UserService {
 
         LoginResponse response = LoginResponse.builder()
           .accessToken(accessToken.getToken())
-          .refreshToken(refreshToken.getToken())
+          .refreshToken(refreshTokenEncode)
           .expiresIn(LocalDateTime.now().plusDays(1))
           .userId(userLogin.getId())
           .roles(userLogin.getRole())
           .build();
 
-        AuditBacklog auditBacklog = AuditBacklog.builder()
-          .user(userLogin)
-          .action("User " + userLogin.getUsername() + " has logged in to the system")
-          .ipAddress(ipService.getClientIp(servletRequest))
-          .status(kcResponse.getStatusCode().value())
-          .actionAt(LocalDateTime.now())
-          .build();
-
-        auditRepository.save(auditBacklog);
-
         return ResponseEntity.ok(response);
-      } else {
-        User userLogin = userRepository.findByUsername(req.getUsername());
-
-        AuditBacklog auditBacklog = AuditBacklog.builder()
-          .user(userLogin)
-          .action("User " + userLogin.getUsername() + " failed to log into the system")
-          .ipAddress(ipService.getClientIp(servletRequest))
-          .status(kcResponse.getStatusCode().value())
-          .actionAt(LocalDateTime.now())
-          .build();
-
-        auditRepository.save(auditBacklog);
       }
-
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication failed");
 
     } catch (HttpClientErrorException e) {
@@ -158,36 +140,50 @@ public class UserService {
     }
   }
 
-  public ResponseEntity<?> register(RegisterRequest request) {
+  @Audit(action = AuditAction.REGISTER)
+  public ResponseEntity<?> register(RegisterRequest request, HttpServletRequest servletRequest) {
 
     if (isUsernameExisted(request.getUsername())) {
-      throw new BusinessException("Username has already existed");
+      throw new BusinessException(ErrorCode.USERNAME_EXIST ,"Username has already existed", AuditAction.REGISTER);
 
     }
 
     if (isPasswordDuplicated(request.getPassword())) {
-      throw new BusinessException("Password was duplicated");
+      throw new BusinessException(ErrorCode.PASSWORD_DUPLICATED, "Password was duplicated", AuditAction.REGISTER);
     }
 
     if (!request.getPassword().matches(PASSWORD_REGEX)) {
-      throw new BusinessException("Password must contain:\n" +
+      throw new BusinessException(
+        ErrorCode.PASSWORD_NOT_MATCH,
+        "Password must contain:\n" +
         "- At least 8 characters\n" +
         "- 1 uppercase letter\n" +
         "- 1 lowercase letter\n" +
         "- 1 number\n" +
-        "- 1 special character");
+        "- 1 special character",
+        AuditAction.REGISTER);
     }
 
     if (!Objects.equals(request.getConfirmPassword(), request.getPassword())) {
-      throw new BusinessException("Passwords don't match");
+      throw new BusinessException(
+        ErrorCode.INVALID_PASSWORD_FORMAT,
+        "Passwords don't match",
+        AuditAction.REGISTER);
     }
 
     if (!request.getEmail().matches(EMAIL_REGEX)) {
-      throw new BusinessException("Email doesn't email format");
+      throw new BusinessException(
+        ErrorCode.INVALID_EMAIL_FORMAT,
+        "Email doesn't email format",
+        AuditAction.REGISTER
+        );
     }
 
     if (isEmailExist(request.getEmail())) {
-      throw new BusinessException("Email has already uses");
+      throw new BusinessException(
+        ErrorCode.EMAIL_EXIST,
+        "Email has already uses",
+        AuditAction.REGISTER);
     }
 
     String firstname = request.getFirstname().trim();
@@ -198,7 +194,7 @@ public class UserService {
       .email(request.getEmail())
       .firstName(firstname)
       .lastName(lastname)
-      .password((request.getPassword()))
+      .password(passwordEncoder.encode(request.getPassword()))
       .status("ACTIVE")
       .role("USER")
       .active(1)
@@ -234,6 +230,7 @@ public class UserService {
     return false;
   }
 
+
   public LoginResponse refreshToken(String refreshToken) {
 
     if (jwtService.isTokenExpired(refreshToken)) {
@@ -258,7 +255,7 @@ public class UserService {
     TokenPayload newAccess = jwtService.generateAccessToken(user);
     TokenPayload newRefresh = jwtService.generateRefreshToken(user);
 
-    /* ===== REVOKE OLD REFRESH TOKEN ===== */
+
     blacklistRepository.save(
       Blacklist.builder()
         .user(user)
@@ -267,7 +264,7 @@ public class UserService {
         .reason("ROTATED")
         .build()
     );
-    /* ===== SAVE NEW ACCESS TOKEN ===== */
+
     redisService.saveToken(
       newAccess.getJwtId(),
       newAccess.getToken(),
@@ -277,7 +274,9 @@ public class UserService {
     return LoginResponse.builder()
       .accessToken(newAccess.getToken())
       .refreshToken(newRefresh.getToken())
-      .expiresIn(LocalDateTime.now().plusSeconds(accessExpiration / 1000))
+      .expiresIn(LocalDateTime.now().plusSeconds(refreshExpiration / 1000))
+      .userId(user.getId())
+      .roles(user.getRole())
       .build();
   }
 
@@ -302,6 +301,7 @@ public class UserService {
     return ResponseEntity.ok(response);
   }
 
+  @Audit(action = AuditAction.LOGOUT)
   public ResponseEntity<?> logout(String header) throws ParseException {
     String token = header.substring(7);
     JwtResponse response = jwtService.parseToken(token);
