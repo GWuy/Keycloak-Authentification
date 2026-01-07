@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import sp26.se194638.ojt.model.dto.request.FilterAuditRequest;
 import sp26.se194638.ojt.service.AuditService;
-
+@CrossOrigin(origins = "http://localhost:4200", allowedHeaders = "*")
 @RestController
 @RequestMapping("assign1/api/audit")
 public class AuditBacklogController {

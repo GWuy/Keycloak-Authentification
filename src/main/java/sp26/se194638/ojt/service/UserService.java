@@ -1,5 +1,6 @@
 package sp26.se194638.ojt.service;
 
+import com.nimbusds.jose.util.Base64;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,7 +30,6 @@ import org.springframework.http.MediaType;
 
 import java.text.ParseException;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -110,16 +110,15 @@ public class UserService {
         TokenPayload accessToken = jwtService.generateAccessToken(userLogin);
         TokenPayload refreshToken = jwtService.generateRefreshToken(userLogin);
 
-
-        String refreshTokenEncode = Base64.getEncoder().encodeToString(refreshToken.getToken().getBytes());
         String jti = accessToken.getJwtId();
         long ttl = accessExpiration;
-
         redisService.saveToken(jti, accessToken.getToken(), ttl);
+
+        String refreshTokenHash = Base64.encode(refreshToken.getToken()).toString();
 
         LoginResponse response = LoginResponse.builder()
           .accessToken(accessToken.getToken())
-          .refreshToken(refreshTokenEncode)
+          .refreshToken(refreshTokenHash)
           .expiresIn(LocalDateTime.now().plusDays(1))
           .userId(userLogin.getId())
           .roles(userLogin.getRole())

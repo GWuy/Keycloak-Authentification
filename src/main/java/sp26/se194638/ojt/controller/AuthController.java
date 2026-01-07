@@ -13,8 +13,8 @@ import sp26.se194638.ojt.model.dto.response.LoginResponse;
 import sp26.se194638.ojt.service.UserService;
 
 import java.text.ParseException;
-import java.util.Base64;
 
+@CrossOrigin(origins = "http://localhost:4200", allowedHeaders = "*")
 @RestController
 @RequestMapping("assign1/api/auth")
 public class AuthController {

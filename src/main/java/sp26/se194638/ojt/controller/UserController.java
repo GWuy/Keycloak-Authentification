@@ -2,10 +2,7 @@ package sp26.se194638.ojt.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import sp26.se194638.ojt.service.UserService;
 
 @RestController
@@ -17,6 +14,6 @@ public class UserController {
 
   @GetMapping
   public ResponseEntity<?> userProfile(@RequestHeader("Authorization") String header) {
-    return ResponseEntity.ok(userService.getProfile(header)).getBody();
+    return ResponseEntity.ok(userService.getProfile(header));
   }
 }
