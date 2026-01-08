@@ -54,7 +54,8 @@ public class AuthController {
   }
 
   @PostMapping("/logout")
-  public ResponseEntity<?> logout(@RequestHeader(value = "Authorization", required = false) String header) throws ParseException {
+  public ResponseEntity<?> logout(
+    @RequestHeader(value = "Authorization", required = false) String header) {
     return ResponseEntity.ok(userService.logout(header));
   }
 }

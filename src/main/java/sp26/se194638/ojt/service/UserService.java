@@ -30,7 +30,6 @@ import sp26.se194638.ojt.repository.*;
 import org.springframework.http.MediaType;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -120,6 +119,11 @@ public class UserService {
 
       TokenPayload accessToken = jwtService.generateAccessToken(user);
       TokenPayload refreshToken = jwtService.generateRefreshToken(user);
+
+      redisTemplate.opsForSet().add(
+        "user:" + user.getId() + ":tokens",
+        jwtService.extractJwId(accessToken.getToken())
+      );
 
       redisService.saveToken(
         accessToken.getJwtId(),
@@ -298,12 +302,26 @@ public class UserService {
       .build();
   }
 
-  public ProfileResponse getProfile() {
+  @Audit(action = AuditAction.PROFILE)
+  public ProfileResponse getProfile(String header) {
 
-    String username =
-      SecurityContextHolder.getContext().getAuthentication().getName();
+    if (header == null || !header.startsWith("Bearer ")) {
+      throw new BusinessException(ErrorCode.INVALID_TOKEN, "Token not match template", AuditAction.PROFILE);
+    }
+
+    String token = header.substring(7);
+
+    if (!redisService.isTokenValid(jwtService.extractJwId(token), token)) {
+      throw new BusinessException(ErrorCode.INVALID_TOKEN, "Missing Authorization header", AuditAction.PROFILE);
+    }
+
+    String username = jwtService.extractUsername(token);
 
     User userProfile = userRepository.findByUsername(username);
+
+    if (userProfile == null) {
+      throw new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found", AuditAction.PROFILE);
+    }
 
     ProfileResponse response = userMapper.toProfileResponse(userProfile);
     return ResponseEntity.ok(response).getBody();
@@ -397,4 +415,29 @@ public class UserService {
 
     return ResponseEntity.ok(responses);
   }
+
+  public LogoutResponse adminLogoutUser(Integer userId, String header) {
+
+    User admin = userRepository.findByUsername(jwtService.extractUsername(header.substring(7)));
+
+    if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    }
+
+    String key = "user:" + userId + ":tokens";
+    Set<String> tokens = redisTemplate.opsForSet().members(key);
+    log.info("Da lay duoc token {}", tokens);
+
+    if (tokens != null) {
+      tokens.forEach(redisService::revokeToken);
+      redisTemplate.delete(key);
+    }
+
+    return LogoutResponse.builder()
+      .isSuccess(true)
+      .message("Force logout user successfully")
+      .build();
+  }
+
+
 }

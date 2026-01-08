@@ -18,8 +18,10 @@ public class UserController {
   private UserService userService;
 
   @GetMapping("/me")
-  public ProfileResponse userProfile() {
-    return ResponseEntity.ok(userService.getProfile()).getBody();
+  public ProfileResponse userProfile(
+    @RequestHeader(value = "Authorization", required = false) String header
+  ) {
+    return ResponseEntity.ok(userService.getProfile(header)).getBody();
   }
 
   @GetMapping("/online-users")
@@ -27,5 +29,13 @@ public class UserController {
     @RequestHeader(value = "Authorization", required = false) String header
   ) {
     return userService.listOnlineUsers(header).getBody();
+  }
+
+  @PostMapping("/logout-user/{userId}")
+  public ResponseEntity<?> logoutUser(
+    @PathVariable Integer userId,
+    @RequestHeader(value = "Authorization", required = false) String header
+  ) {
+    return ResponseEntity.ok(userService.adminLogoutUser(userId, header));
   }
 }
