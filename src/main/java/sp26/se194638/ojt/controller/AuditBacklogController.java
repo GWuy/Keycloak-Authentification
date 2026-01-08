@@ -6,20 +6,21 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import sp26.se194638.ojt.model.dto.request.FilterAuditRequest;
 import sp26.se194638.ojt.service.AuditService;
-@CrossOrigin(origins = "http://localhost:4200", allowedHeaders = "*")
 @RestController
 @RequestMapping("assign1/api/audit")
 public class AuditBacklogController {
   @Autowired
   private AuditService auditService;
 
-  @GetMapping(
+  @PostMapping(
+    value = "/search",
     consumes = MediaType.APPLICATION_JSON_VALUE,
     produces = MediaType.APPLICATION_JSON_VALUE
   )
   public ResponseEntity<?> getAllAudit(
     @RequestHeader("Authorization") String token,
-    @RequestBody FilterAuditRequest filterAuditRequest) {
-    return ResponseEntity.ok(auditService.listAll(token, filterAuditRequest)).getBody();
+    @RequestBody FilterAuditRequest filterAuditRequest){
+    return auditService.listAll(token, filterAuditRequest);
   }
+
 }

@@ -2,6 +2,7 @@ package sp26.se194638.ojt.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import sp26.se194638.ojt.mapper.AuditBacklogMapper;
@@ -31,15 +32,29 @@ public class AuditService {
   @Autowired
   private UserRepository userRepository;
 
+  @Autowired
+  private RedisService redisService;
+
   public ResponseEntity<?> listAll(String header, FilterAuditRequest filterAuditRequest) {
 
     //kieem tra xem cos phair la admin khoong
     if (!isAdmin(header)) {
       ErrorResponse errorResponse = ErrorResponse.builder()
         .statusCode(403)
-        .message("You don't have permission to access this action")
+        .message("You don't have permission")
         .build();
-      return ResponseEntity.ok(errorResponse);
+      return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        .body(errorResponse);
+    }
+
+    String token = header.substring(7);
+    if (!redisService.isTokenValid(jwtService.extractJwId(token), token)) {
+      ErrorResponse errorResponse = ErrorResponse.builder()
+        .statusCode(403)
+        .message("Token is expired or invalid")
+        .build();
+      return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        .body(errorResponse);
     }
 
     //list ra taast car nhuwngx backlog cos trong db

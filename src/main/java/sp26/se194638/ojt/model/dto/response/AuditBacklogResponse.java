@@ -9,6 +9,6 @@ public class AuditBacklogResponse {
   private String username;
   private String action;
   private String ipAddress;
-  private int status;
+  private String status;
   private LocalDateTime actionAt;
 }

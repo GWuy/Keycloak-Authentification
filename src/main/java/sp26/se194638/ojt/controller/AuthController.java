@@ -27,11 +27,8 @@ public class AuthController {
     consumes = MediaType.APPLICATION_JSON_VALUE,
     produces = MediaType.APPLICATION_JSON_VALUE
   )
-  public ResponseEntity<?> login(
-    @RequestBody LoginRequest request,
-    HttpServletRequest servletRequest
-  ) {
-    return ResponseEntity.ok(userService.login(request, servletRequest));
+  public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+    return ResponseEntity.ok(userService.login(request));
   }
 
   @PostMapping(
@@ -40,10 +37,9 @@ public class AuthController {
     produces = MediaType.APPLICATION_JSON_VALUE
   )
   public ResponseEntity<?> register(
-    @RequestBody RegisterRequest request,
-    HttpServletRequest servletRequest
+    @RequestBody RegisterRequest request
   ) {
-    return ResponseEntity.ok(userService.register(request, servletRequest));
+    return ResponseEntity.ok(userService.register(request));
   }
 
   @PostMapping("/refresh")
