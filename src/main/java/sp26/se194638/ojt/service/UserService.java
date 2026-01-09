@@ -45,6 +45,8 @@ public class UserService {
   @Autowired
   private JwtService jwtService;
 
+  private AccountBanRepository accountBanRepository;
+
   @Autowired
   private BlacklistRepository blacklistRepository;
 
@@ -115,6 +117,10 @@ public class UserService {
           "User not found",
           AuditAction.LOGIN
         );
+      }
+
+      if (accountBanRepository.existsById(user.getId())) {
+        throw new BusinessException(ErrorCode.LOGINFAILED, "Account is banned", AuditAction.LOGIN);
       }
 
       TokenPayload accessToken = jwtService.generateAccessToken(user);
