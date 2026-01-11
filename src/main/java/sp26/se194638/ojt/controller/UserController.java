@@ -3,7 +3,6 @@ package sp26.se194638.ojt.controller;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import sp26.se194638.ojt.model.dto.request.BanRequest;
 import sp26.se194638.ojt.model.dto.response.ProfileResponse;
 import sp26.se194638.ojt.model.dto.response.UserLoggingResponse;
 import sp26.se194638.ojt.service.AccountBanService;
@@ -11,7 +10,7 @@ import sp26.se194638.ojt.service.UserService;
 
 import java.util.List;
 
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = "http://localhost:4200", allowedHeaders = "*")
 @RestController
 @RequestMapping("/assign1/api/users")
 public class UserController {
@@ -44,12 +43,4 @@ public class UserController {
     return ResponseEntity.ok(userService.adminLogoutUser(userId, header));
   }
 
-  @PostMapping("/ban-account/{userId}")
-  public ResponseEntity<?> banAccount(
-    @PathVariable Integer userId,
-    @RequestBody BanRequest request,
-    @RequestHeader(value = "Authorization", required = false) String header
-  ) {
-    return ResponseEntity.ok(accountBanService.banAccount(request, userId, header));
-  }
 }

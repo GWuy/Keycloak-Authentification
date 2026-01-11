@@ -7,9 +7,10 @@ import java.time.LocalDateTime;
 
 @Data
 @Builder
-public class AccountBanResponse {
-  private String banBy;
+public class BanAccountListResponse {
+  private Integer userId;
+  private String userName;
+  private String email;
   private String reason;
-  private boolean status;
   private LocalDateTime banAt;
 }

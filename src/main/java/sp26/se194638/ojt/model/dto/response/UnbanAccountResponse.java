@@ -7,9 +7,8 @@ import java.time.LocalDateTime;
 
 @Data
 @Builder
-public class AccountBanResponse {
-  private String banBy;
-  private String reason;
-  private boolean status;
-  private LocalDateTime banAt;
+public class UnbanAccountResponse {
+  private String message;
+  private String unbanBy;
+  private LocalDateTime unbanAt;
 }

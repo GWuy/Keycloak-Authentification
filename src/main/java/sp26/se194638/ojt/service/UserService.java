@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.*;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -45,6 +44,7 @@ public class UserService {
   @Autowired
   private JwtService jwtService;
 
+  @Autowired
   private AccountBanRepository accountBanRepository;
 
   @Autowired
@@ -61,6 +61,9 @@ public class UserService {
 
   @Autowired
   private RedisService redisService;
+
+  @Autowired
+  private OtpService otpService;
 
   @Value("${jwt.access-expiration}")
   private Long accessExpiration;
@@ -117,6 +120,10 @@ public class UserService {
           "User not found",
           AuditAction.LOGIN
         );
+      }
+
+      if (user.getActive() == 0 || "INACTIVE".equalsIgnoreCase(user.getStatus())) {
+        throw new BusinessException(ErrorCode.ACCOUNT_DISABLED, "Your account has been banned", AuditAction.LOGIN);
       }
 
       if (accountBanRepository.existsById(user.getId())) {
@@ -248,14 +255,7 @@ public class UserService {
   }
 
   public boolean isEmailExist(String email) {
-    List<String> emailList = userRepository.emails();
-
-    for (int i = 0; i < emailList.size() - 1; i++) {
-      if (emailList.get(i).equals(email)) {
-        return true;
-      }
-    }
-    return false;
+    return userRepository.existsByEmail(email);
   }
 
 
@@ -422,6 +422,7 @@ public class UserService {
     return ResponseEntity.ok(responses);
   }
 
+  @Audit(action = AuditAction.LOGOUT)
   public LogoutResponse adminLogoutUser(Integer userId, String header) {
 
     User admin = userRepository.findByUsername(jwtService.extractUsername(header.substring(7)));
@@ -446,4 +447,51 @@ public class UserService {
   }
 
 
+  public void updatePassword(String email, String newPassword) {
+    if (userRepository.existsByEmail(email)) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Email not exist");
+    }
+
+    User account = userRepository.findUserByEmail(email);
+
+    account.setPassword(passwordEncoder.encode(newPassword));
+    userRepository.save(account);
+  }
+
+  public void verifyRegisterOtp(String email, String otp) {
+    User user = userRepository.findUserByEmail(email);
+
+    if (!otpService.verifyOtp(email, otp)) {
+      throw new BusinessException(ErrorCode.INVALID_EMAIL_FORMAT, "Invalid OTP code", AuditAction.REGISTER);
+    }
+
+    userRepository.save(user);
+  }
+
+  public OverviewResponse overview(String header) {
+
+    if (header == null || !header.startsWith("Bearer ")) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Header not valid");
+    }
+
+    String token = header.substring(7);
+
+    if (!redisService.isTokenValid(jwtService.extractJwId(token), token)) {
+      throw new BusinessException(ErrorCode.INVALID_TOKEN, "Token invalid", AuditAction.OVERVIEW);
+    }
+
+    Set<String> keys = redisTemplate.keys(ONLINE_USER_KEY_PREFIX + "*");
+
+    int onlineUser = keys.size();
+
+    int bannedAccount = (int) accountBanRepository.count();
+
+    int totalUser = (int) userRepository.count();
+
+    return OverviewResponse.builder()
+      .onlineUser(onlineUser)
+      .bannedUser(bannedAccount)
+      .totalUser(totalUser)
+      .build();
+  }
 }
