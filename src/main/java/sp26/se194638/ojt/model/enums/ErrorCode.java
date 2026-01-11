@@ -17,7 +17,9 @@ public enum ErrorCode {
   LOGINFAILED(HttpStatus.UNAUTHORIZED),
   ACCOUNT_DISABLED(HttpStatus.FORBIDDEN),
   INVALID_TOKEN(HttpStatus.UNAUTHORIZED),
-  USER_NOT_FOUND(HttpStatus.NOT_FOUND);
+  USER_NOT_FOUND(HttpStatus.NOT_FOUND),
+  INVALID_REQUEST(HttpStatus.BAD_REQUEST),
+  INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
   private final HttpStatus status;
 
