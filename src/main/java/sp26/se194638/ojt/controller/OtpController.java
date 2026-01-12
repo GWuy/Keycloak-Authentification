@@ -3,7 +3,7 @@ package sp26.se194638.ojt.controller;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import sp26.se194638.ojt.exception.BusinessException;
+import sp26.se194638.ojt.exception.GlobalException;
 import sp26.se194638.ojt.model.dto.request.OtpRequest;
 import sp26.se194638.ojt.model.dto.request.PasswordResetRequest;
 import sp26.se194638.ojt.model.dto.request.RequestChangPasswordOtp;
@@ -31,7 +31,7 @@ public class OtpController {
     try {
       userService.isEmailExist(email);
       return ResponseEntity.badRequest().body("This email is already registered");
-    } catch(BusinessException e) {
+    } catch(GlobalException e) {
       System.out.printf(e.getMessage());
     }
     otpService.generateOtp(email);
@@ -43,7 +43,7 @@ public class OtpController {
     try {
       userService.verifyRegisterOtp(request.getEmail(), request.getOtp());
       return ResponseEntity.ok("Email verified successfully");
-    } catch(BusinessException e){
+    } catch(GlobalException e){
       return ResponseEntity.badRequest().body(e.getMessage());
     }
   }
@@ -55,7 +55,7 @@ public class OtpController {
         return ResponseEntity.badRequest().body("OTP invalid or expired");
       }
       return ResponseEntity.ok("OTP verified successfully");
-    } catch(BusinessException e){
+    } catch(GlobalException e){
       return ResponseEntity.badRequest().body(e.getMessage());
     }
   }

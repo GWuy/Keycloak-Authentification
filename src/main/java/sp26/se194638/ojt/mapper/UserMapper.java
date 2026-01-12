@@ -10,5 +10,6 @@ public interface UserMapper {
 
   @Mapping(source = "user.firstName", target = "firstname")
   @Mapping(source = "user.lastName", target = "lastname")
+  @Mapping(source = "user.avatar", target = "avatar")
   ProfileResponse toProfileResponse(User user);
 }

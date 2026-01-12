@@ -6,6 +6,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 
@@ -44,6 +45,12 @@ public class User implements UserDetails {
     private String role;
     @Column(name = "active")
     private Integer active;
+
+    @Column(name = "avatar", length = Integer.MAX_VALUE)
+    private String avatar;
+
+    @Column(name = "day_of_birth")
+    private LocalDate dayOfBirth;
 
 
   @Override

@@ -3,6 +3,7 @@ package sp26.se194638.ojt.controller;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import sp26.se194638.ojt.model.dto.response.ProfileResponse;
 import sp26.se194638.ojt.model.dto.response.UserLoggingResponse;
 import sp26.se194638.ojt.service.AccountBanService;
@@ -42,5 +43,6 @@ public class UserController {
   ) {
     return ResponseEntity.ok(userService.adminLogoutUser(userId, header));
   }
+
 
 }

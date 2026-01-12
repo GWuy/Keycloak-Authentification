@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 @Builder
-public class ImageResponse {
-  private Long id;
-  private String url;
+public class GlobalResponse {
+  private String message;
+  private boolean isSuccess;
 }

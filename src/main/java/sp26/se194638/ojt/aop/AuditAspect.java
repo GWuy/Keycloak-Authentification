@@ -9,7 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import sp26.se194638.ojt.annotation.Audit;
-import sp26.se194638.ojt.exception.BusinessException;
+import sp26.se194638.ojt.exception.GlobalException;
 import sp26.se194638.ojt.model.entity.AuditBacklog;
 import sp26.se194638.ojt.model.entity.User;
 import sp26.se194638.ojt.model.utils.RequestContextUtil;
@@ -54,7 +54,7 @@ public class AuditAspect {
         .build());
 
       return result;
-    } catch (BusinessException ex) {
+    } catch (GlobalException ex) {
 
       auditRepository.save(AuditBacklog.builder()
         .action(audit.action().name())

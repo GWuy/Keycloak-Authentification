@@ -12,12 +12,13 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import sp26.se194638.ojt.annotation.Audit;
 import sp26.se194638.ojt.mapper.UserOnlineMapper;
 import sp26.se194638.ojt.model.enums.AuditAction;
 import sp26.se194638.ojt.model.enums.ErrorCode;
-import sp26.se194638.ojt.exception.BusinessException;
+import sp26.se194638.ojt.exception.GlobalException;
 import sp26.se194638.ojt.mapper.UserMapper;
 import sp26.se194638.ojt.model.dto.response.*;
 import sp26.se194638.ojt.model.entity.Blacklist;
@@ -64,6 +65,9 @@ public class UserService {
 
   @Autowired
   private OtpService otpService;
+
+  @Autowired
+  private UploadService uploadService;
 
   @Value("${jwt.access-expiration}")
   private Long accessExpiration;
@@ -115,7 +119,7 @@ public class UserService {
 
       User user = userRepository.findByUsername(req.getUsername());
       if (user == null) {
-        throw new BusinessException(
+        throw new GlobalException(
           ErrorCode.LOGINFAILED,
           "User not found",
           AuditAction.LOGIN
@@ -123,11 +127,11 @@ public class UserService {
       }
 
       if (user.getActive() == 0 || "INACTIVE".equalsIgnoreCase(user.getStatus())) {
-        throw new BusinessException(ErrorCode.ACCOUNT_DISABLED, "Your account has been banned", AuditAction.LOGIN);
+        throw new GlobalException(ErrorCode.ACCOUNT_DISABLED, "Your account has been banned", AuditAction.LOGIN);
       }
 
       if (accountBanRepository.existsById(user.getId())) {
-        throw new BusinessException(ErrorCode.LOGINFAILED, "Account is banned", AuditAction.LOGIN);
+        throw new GlobalException(ErrorCode.LOGINFAILED, "Account is banned", AuditAction.LOGIN);
       }
 
       TokenPayload accessToken = jwtService.generateAccessToken(user);
@@ -161,13 +165,13 @@ public class UserService {
         .build();
 
     } catch (HttpClientErrorException.Unauthorized ex) {
-      throw new BusinessException(
+      throw new GlobalException(
         ErrorCode.LOGINFAILED,
         "Invalid username or password",
         AuditAction.LOGIN
       );
     } catch (HttpClientErrorException.Forbidden ex) {
-      throw new BusinessException(
+      throw new GlobalException(
         ErrorCode.ACCOUNT_DISABLED,
         "Account disabled",
         AuditAction.LOGIN
@@ -179,16 +183,16 @@ public class UserService {
   public ResponseEntity<?> register(RegisterRequest request) {
 
     if (isUsernameExisted(request.getUsername())) {
-      throw new BusinessException(ErrorCode.USERNAME_EXIST ,"Username has already existed", AuditAction.REGISTER);
+      throw new GlobalException(ErrorCode.USERNAME_EXIST ,"Username has already existed", AuditAction.REGISTER);
 
     }
 
     if (isPasswordDuplicated(request.getPassword())) {
-      throw new BusinessException(ErrorCode.PASSWORD_DUPLICATED, "Password was duplicated", AuditAction.REGISTER);
+      throw new GlobalException(ErrorCode.PASSWORD_DUPLICATED, "Password was duplicated", AuditAction.REGISTER);
     }
 
     if (!request.getPassword().matches(PASSWORD_REGEX)) {
-      throw new BusinessException(
+      throw new GlobalException(
         ErrorCode.PASSWORD_NOT_MATCH,
         "Password must contain:\n" +
         "- At least 8 characters\n" +
@@ -200,14 +204,14 @@ public class UserService {
     }
 
     if (!Objects.equals(request.getConfirmPassword(), request.getPassword())) {
-      throw new BusinessException(
+      throw new GlobalException(
         ErrorCode.INVALID_PASSWORD_FORMAT,
         "Passwords don't match",
         AuditAction.REGISTER);
     }
 
     if (!request.getEmail().matches(EMAIL_REGEX)) {
-      throw new BusinessException(
+      throw new GlobalException(
         ErrorCode.INVALID_EMAIL_FORMAT,
         "Email doesn't email format",
         AuditAction.REGISTER
@@ -215,7 +219,7 @@ public class UserService {
     }
 
     if (isEmailExist(request.getEmail())) {
-      throw new BusinessException(
+      throw new GlobalException(
         ErrorCode.EMAIL_EXIST,
         "Email has already uses",
         AuditAction.REGISTER);
@@ -233,6 +237,7 @@ public class UserService {
       .status("ACTIVE")
       .role("USER")
       .active(1)
+      .dayOfBirth(request.getDayOfBirth())
       .build();
 
     userRepository.save(userRegister);
@@ -312,13 +317,13 @@ public class UserService {
   public ProfileResponse getProfile(String header) {
 
     if (header == null || !header.startsWith("Bearer ")) {
-      throw new BusinessException(ErrorCode.INVALID_TOKEN, "Token not match template", AuditAction.PROFILE);
+      throw new GlobalException(ErrorCode.INVALID_TOKEN, "Token not match template", AuditAction.PROFILE);
     }
 
     String token = header.substring(7);
 
     if (!redisService.isTokenValid(jwtService.extractJwId(token), token)) {
-      throw new BusinessException(ErrorCode.INVALID_TOKEN, "Missing Authorization header", AuditAction.PROFILE);
+      throw new GlobalException(ErrorCode.INVALID_TOKEN, "Missing Authorization header", AuditAction.PROFILE);
     }
 
     String username = jwtService.extractUsername(token);
@@ -326,7 +331,7 @@ public class UserService {
     User userProfile = userRepository.findByUsername(username);
 
     if (userProfile == null) {
-      throw new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found", AuditAction.PROFILE);
+      throw new GlobalException(ErrorCode.USER_NOT_FOUND, "User not found", AuditAction.PROFILE);
     }
 
     ProfileResponse response = userMapper.toProfileResponse(userProfile);
@@ -353,7 +358,7 @@ public class UserService {
     redisTemplate.delete(ONLINE_USER_KEY_PREFIX + user.getId());
 
     return ResponseEntity.ok(
-      LogoutResponse.builder()
+      GlobalResponse.builder()
         .message("Logout successfully")
         .isSuccess(true)
         .build()
@@ -363,34 +368,8 @@ public class UserService {
   @Audit(action = AuditAction.LIST_ONLINE_USER)
   public ResponseEntity<List<UserLoggingResponse>> listOnlineUsers(String header) {
 
-    if (header == null || !header.startsWith("Bearer ")) {
-      throw new ResponseStatusException(
-        HttpStatus.BAD_REQUEST,
-        "Missing Authorization header"
-      );
-    }
-
-    String token = header.substring(7);
-
-    if (!redisService.isTokenValid(
-      jwtService.extractJwId(token),
-      token
-    )) {
-      throw new ResponseStatusException(
-        HttpStatus.UNAUTHORIZED,
-        "Token is expired or invalid"
-      );
-    }
-
-    User admin =
-      userRepository.findByUsername(jwtService.extractUsername(token));
-
-    if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
-      throw new BusinessException(
-        ErrorCode.FORBIDDEN,
-        "You don't have permission to access this resource",
-        AuditAction.LIST_ONLINE_USER
-      );
+    if (!isAdmin(header)) {
+      throw new GlobalException(ErrorCode.FORBIDDEN, "You don't have permission to access this resource", AuditAction.OVERVIEW);
     }
 
     Set<String> keys = redisTemplate.keys(ONLINE_USER_KEY_PREFIX + "*");
@@ -423,12 +402,10 @@ public class UserService {
   }
 
   @Audit(action = AuditAction.LOGOUT)
-  public LogoutResponse adminLogoutUser(Integer userId, String header) {
+  public GlobalResponse adminLogoutUser(Integer userId, String header) {
 
-    User admin = userRepository.findByUsername(jwtService.extractUsername(header.substring(7)));
-
-    if (!"ADMIN".equalsIgnoreCase(admin.getRole())) {
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    if (!isAdmin(header)) {
+      throw new GlobalException(ErrorCode.FORBIDDEN, "You don't have permission to access this resource", AuditAction.OVERVIEW);
     }
 
     String key = "user:" + userId + ":tokens";
@@ -440,11 +417,40 @@ public class UserService {
       redisTemplate.delete(key);
     }
 
-    return LogoutResponse.builder()
+    return GlobalResponse.builder()
       .isSuccess(true)
       .message("Force logout user successfully")
       .build();
   }
+
+  public GlobalResponse uploadAvatar(String header, MultipartFile avatarFile) {
+    if (header == null || !header.startsWith("Bearer ")) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Header not valid");
+    }
+
+    String token = header.substring(7);
+
+    if (!redisService.isTokenValid(jwtService.extractJwId(token), token)) {
+      log.error("Token invalid");
+      throw new GlobalException(ErrorCode.INVALID_TOKEN, "Token invalid or expired", AuditAction.UPLOAD_AVATAR);
+    }
+
+    User user = userRepository.findByUsername(jwtService.extractUsername(token));
+    if (user == null) {
+      throw new GlobalException(ErrorCode.USER_NOT_FOUND, "User not found", AuditAction.UPLOAD_AVATAR);
+    }
+
+    // Upload file to R2/S3
+    String avatarUrl = uploadService.upload(avatarFile, "avatar");
+    user.setAvatar(avatarUrl);
+    userRepository.save(user);
+
+    return GlobalResponse.builder()
+      .message("Upload Avatar successfully")
+      .isSuccess(true)
+      .build();
+  }
+
 
 
   public void updatePassword(String email, String newPassword) {
@@ -462,7 +468,7 @@ public class UserService {
     User user = userRepository.findUserByEmail(email);
 
     if (!otpService.verifyOtp(email, otp)) {
-      throw new BusinessException(ErrorCode.INVALID_EMAIL_FORMAT, "Invalid OTP code", AuditAction.REGISTER);
+      throw new GlobalException(ErrorCode.INVALID_EMAIL_FORMAT, "Invalid OTP code", AuditAction.REGISTER);
     }
 
     userRepository.save(user);
@@ -470,14 +476,8 @@ public class UserService {
 
   public OverviewResponse overview(String header) {
 
-    if (header == null || !header.startsWith("Bearer ")) {
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Header not valid");
-    }
-
-    String token = header.substring(7);
-
-    if (!redisService.isTokenValid(jwtService.extractJwId(token), token)) {
-      throw new BusinessException(ErrorCode.INVALID_TOKEN, "Token invalid", AuditAction.OVERVIEW);
+    if (!isAdmin(header)) {
+      throw new GlobalException(ErrorCode.FORBIDDEN, "You don't have permission to access this resource", AuditAction.OVERVIEW);
     }
 
     Set<String> keys = redisTemplate.keys(ONLINE_USER_KEY_PREFIX + "*");
@@ -493,5 +493,23 @@ public class UserService {
       .bannedUser(bannedAccount)
       .totalUser(totalUser)
       .build();
+  }
+
+  public boolean isAdmin(String header) {
+    if (header == null || !header.startsWith("Bearer ")) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Header not valid");
+    }
+
+    String token = header.substring(7);
+
+    if (!redisService.isTokenValid(jwtService.extractJwId(token), token)) {
+      log.error("Token invalid");
+      return false;
+    }
+
+    User user = userRepository.findByUsername(jwtService.extractUsername(token));
+    if (user == null) return false;
+
+    return "ADMIN".equalsIgnoreCase(user.getRole());
   }
 }

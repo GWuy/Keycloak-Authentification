@@ -1,9 +1,8 @@
 package sp26.se194638.ojt.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
-import sp26.se194638.ojt.exception.BusinessException;
+import sp26.se194638.ojt.exception.GlobalException;
 import sp26.se194638.ojt.mapper.BanAccountMapper;
 import sp26.se194638.ojt.model.dto.request.BanRequest;
 import sp26.se194638.ojt.model.dto.response.AccountBanResponse;
@@ -37,7 +36,7 @@ public class AccountBanService {
   public AccountBanResponse banAccount(BanRequest banRequest, Integer userId, String header) {
     //lay header
     if (header == null || !header.startsWith("Bearer ")) {
-      throw new BusinessException(ErrorCode.INVALID_TOKEN, "Invalid token", AuditAction.BAN_ACCOUNT);
+      throw new GlobalException(ErrorCode.INVALID_TOKEN, "Invalid token", AuditAction.BAN_ACCOUNT);
     }
     //cat header ra lay token
     String token = header.substring(7);
@@ -45,16 +44,16 @@ public class AccountBanService {
     User admin = userRepository.findByUsername(jwtService.extractUsername(token));
     //kiem tra quyen
     if (admin == null || !admin.getRole().equalsIgnoreCase("ADMIN")) {
-      throw new BusinessException(ErrorCode.FORBIDDEN, "You don't have permission to access this resource", AuditAction.BAN_ACCOUNT);
+      throw new GlobalException(ErrorCode.FORBIDDEN, "You don't have permission to access this resource", AuditAction.BAN_ACCOUNT);
     }
 
     if (accountBanRepository.existsByUser(userRepository.findUserById(userId))) {
-      throw new BusinessException(ErrorCode.SYSTEM_ERROR, "This account has been banned", AuditAction.BAN_ACCOUNT);
+      throw new GlobalException(ErrorCode.SYSTEM_ERROR, "This account has been banned", AuditAction.BAN_ACCOUNT);
     }
 
     User whoBanned = userRepository.findUserById(userId);
     if (whoBanned == null) {
-      throw new BusinessException(ErrorCode.USER_NOT_FOUND, "User not found", AuditAction.BAN_ACCOUNT);
+      throw new GlobalException(ErrorCode.USER_NOT_FOUND, "User not found", AuditAction.BAN_ACCOUNT);
     }
 
     whoBanned.setStatus("INACTIVE");
@@ -78,7 +77,7 @@ public class AccountBanService {
 
     //lay header
     if (header == null || !header.startsWith("Bearer ")) {
-      throw new BusinessException(ErrorCode.INVALID_TOKEN, "Invalid token", AuditAction.BAN_ACCOUNT);
+      throw new GlobalException(ErrorCode.INVALID_TOKEN, "Invalid token", AuditAction.BAN_ACCOUNT);
     }
     //cat header ra lay token
     String token = header.substring(7);
@@ -86,7 +85,7 @@ public class AccountBanService {
     User admin = userRepository.findByUsername(jwtService.extractUsername(token));
     //kiem tra quyen
     if (admin == null || !admin.getRole().equalsIgnoreCase("ADMIN")) {
-      throw new BusinessException(ErrorCode.FORBIDDEN, "You don't have permission to access this resource", AuditAction.BAN_ACCOUNT);
+      throw new GlobalException(ErrorCode.FORBIDDEN, "You don't have permission to access this resource", AuditAction.BAN_ACCOUNT);
     }
 
     return accountBanRepository.findAll()
@@ -99,7 +98,7 @@ public class AccountBanService {
 
     //lay header
     if (header == null || !header.startsWith("Bearer ")) {
-      throw new BusinessException(ErrorCode.INVALID_TOKEN, "Invalid token", AuditAction.BAN_ACCOUNT);
+      throw new GlobalException(ErrorCode.INVALID_TOKEN, "Invalid token", AuditAction.BAN_ACCOUNT);
     }
     //cat header ra lay token
     String token = header.substring(7);
@@ -107,7 +106,7 @@ public class AccountBanService {
     User admin = userRepository.findByUsername(jwtService.extractUsername(token));
     //kiem tra quyen
     if (admin == null || !admin.getRole().equalsIgnoreCase("ADMIN")) {
-      throw new BusinessException(ErrorCode.FORBIDDEN, "You don't have permission to access this resource", AuditAction.BAN_ACCOUNT);
+      throw new GlobalException(ErrorCode.FORBIDDEN, "You don't have permission to access this resource", AuditAction.BAN_ACCOUNT);
     }
 
     //tim nguoi unban

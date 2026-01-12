@@ -33,7 +33,6 @@ public class R2Config {
       )
       .region(Region.US_EAST_1)
 
-      // 🔴 CẤU HÌNH QUYẾT ĐỊNH CHO R2
       .serviceConfiguration(
         software.amazon.awssdk.services.s3.S3Configuration.builder()
           .pathStyleAccessEnabled(true)
@@ -42,7 +41,6 @@ public class R2Config {
           .build()
       )
 
-      // ❗ KHÔNG override signer
       .build();
   }
 }

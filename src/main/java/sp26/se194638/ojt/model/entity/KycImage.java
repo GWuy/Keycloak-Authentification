@@ -1,23 +1,19 @@
 package sp26.se194638.ojt.model.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
 @Getter
 @Setter
 @Entity
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-@Data
-@Table(name = "images")
-public class Image {
+@Table(name = "kyc_image")
+public class KycImage {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
@@ -25,14 +21,17 @@ public class Image {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @JoinColumn(name = "kyc_id", nullable = false)
+    private Kyc kyc;
 
-    @Column(name = "file_url", nullable = false, length = Integer.MAX_VALUE)
-    private String fileUrl;
+    @Column(name = "image_type", nullable = false, length = 10)
+    private String imageType;
+
+    @Column(name = "image_data", nullable = false, length = Integer.MAX_VALUE)
+    private String imageData;
 
     @ColumnDefault("CURRENT_TIMESTAMP")
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    @Column(name = "uploaded_at")
+    private OffsetDateTime uploadedAt;
 
 }
